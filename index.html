@@ -72,8 +72,9 @@ var TABLE = "Catches";                   // name of the table inside the workboo
 var GRAPH = "https://graph.microsoft.com/v1.0/me/drive/root:/" + encodeURI(FILE_PATH) + ":/workbook/tables/" + encodeURIComponent(TABLE);
 var SCOPES = ["Files.ReadWrite"];
 var $ = function(i){return document.getElementById(i)};
-var msal = new msalBrowser.PublicClientApplication({
-  auth:{clientId:CLIENT_ID,authority:"https://login.microsoftonline.com/"+TENANT,redirectUri:window.location.origin+window.location.pathname},
+if(typeof msal==="undefined"){$("loginerr").textContent="Couldn't load the Microsoft sign-in library. Check your connection or any content blocker and reload.";throw new Error("msal not loaded")}
+var pca = new msal.PublicClientApplication({
+  auth:{clientId:CLIENT_ID,authority:"https://login.microsoftonline.com/"+TENANT,redirectUri:window.location.origin+window.location.pathname.replace(/index\.html$/,"")},
   cache:{cacheLocation:"localStorage"}
 });
 var account = null, rows = [];
@@ -83,8 +84,8 @@ function nowLocal(){var d=new Date();d.setMinutes(d.getMinutes()-d.getTimezoneOf
 function say(t,bad){var s=$("status");s.textContent=t||"";s.className="msg"+(bad?" err":"")}
 
 function token(){
-  return msal.acquireTokenSilent({scopes:SCOPES,account:account}).then(function(r){return r.accessToken},function(){
-    return msal.acquireTokenRedirect({scopes:SCOPES,account:account});
+  return pca.acquireTokenSilent({scopes:SCOPES,account:account}).then(function(r){return r.accessToken},function(){
+    return pca.acquireTokenRedirect({scopes:SCOPES,account:account});
   });
 }
 function graph(path,opts){
@@ -101,7 +102,7 @@ function graph(path,opts){
 function load(){
   say("Loading catches…");
   graph("/rows").then(function(j){
-    rows=j.value.map(function(r,i){var v=r.values[0];return{i:i,dt:v[0],species:v[1],len:v[2],wt:v[3],who:v[4],loc:v[5],how:v[6],rel:v[7],note:v[8],gps:v[9]}});
+    rows=j.value.map(function(r,i){var v=r.values[0];return{i:i,dt:v[0],species:v[1],len:v[2],wt:v[3],who:v[4],loc:v[5],how:v[6],rel:v[7],note:v[8],gps:v[9]}}).filter(function(c){return String(c.species||"").trim()});
     say("");render();
   }).catch(function(e){say(e.message,true)});
 }
@@ -150,19 +151,19 @@ $("gpsb").addEventListener("click",function(){
     say("Couldn't get your location. Allow location access for this site in your phone's browser settings.",true);
   },{enableHighAccuracy:true,timeout:15000,maximumAge:30000});
 });
-$("in").addEventListener("click",function(){msal.loginRedirect({scopes:SCOPES})});
-$("out").addEventListener("click",function(){msal.logoutRedirect({account:account})});
+$("in").addEventListener("click",function(){pca.loginRedirect({scopes:SCOPES})});
+$("out").addEventListener("click",function(){pca.logoutRedirect({account:account})});
 
 function start(){
-  account=msal.getActiveAccount()||msal.getAllAccounts()[0]||null;
+  account=pca.getActiveAccount()||pca.getAllAccounts()[0]||null;
   if(!account)return;
-  msal.setActiveAccount(account);
+  pca.setActiveAccount(account);
   $("login").style.display="none";$("app").style.display="block";$("out").hidden=false;
   $("who-am-i").textContent="Saving to "+FILE_PATH+" as "+account.username;
   $("dt").value=nowLocal();load();
 }
-msal.initialize().then(function(){return msal.handleRedirectPromise()}).then(function(r){
-  if(r&&r.account)msal.setActiveAccount(r.account);start();
+pca.initialize().then(function(){return pca.handleRedirectPromise()}).then(function(r){
+  if(r&&r.account)pca.setActiveAccount(r.account);start();
 }).catch(function(e){$("loginerr").textContent=e.message});
 </script>
 </body>
